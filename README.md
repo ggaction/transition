@@ -101,3 +101,42 @@ verify exact retarget continuity, retained identity, 120 rapid switches, cleanup
 invalid input, promise settlement, and reduced motion. Native chart pixel and
 performance integration tests live in `ggaction/vis-autocomplete` under
 `test/browser/transition-player.py` and `transition-mode.py`.
+
+
+## Canvas playback
+
+Use version-2 scenes with `createCanvasTransitionPlayer`. Canvas drawing is
+provided by ggaction, while this package owns correspondence, timing and
+interruption. No SVG parsing or bitmap image decoding occurs during playback.
+SVG playback and version-1 scenes remain supported by `createTransitionPlayer`.
+
+```js
+import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
+import { createCanvasTransitionPlayer } from '@ggaction/transition';
+// container is a sized, positioned HTMLElement; before/after are ChartPrograms.
+const player = createCanvasTransitionPlayer(container, {
+  render: renderTransitionScene, duration: 300, maxAnimatedNodes: 3000
+});
+await player.set(createTransitionScene(before, { format: 'canvas' }));
+await player.transitionTo(createTransitionScene(after, { format: 'canvas' }));
+// When removing the host:
+player.destroy();
+```
+
+The Canvas player has the same `set`, `transitionTo`, `scene`, `element`,
+`animating`, `stats`, and `destroy` lifecycle. Its element is an HTMLCanvasElement.
+Retargeting starts at the last painted frame, including partially faded marks.
+Compatible numeric geometry, colors, gradients and path commands interpolate;
+different text, discrete styles or incompatible paths crossfade. The player fits
+and centers the logical scene, redraws when the host resizes, and honors device
+pixel ratio and reduced motion. Backing allocation is capped at 4096 per axis and
+16 million pixels; logical geometry is unaffected. Outgoing records are bounded
+and observers, frame callbacks and the Canvas are released on destruction.
+The `render` callback receives `(scene, context, { pixelRatio })`; it must clear
+and size the canvas and paint the supplied concrete scene synchronously.
+
+Above `maxAnimatedNodes`, the player blends two Canvas snapshots instead of
+repainting thousands of interpolated primitives per frame. Retargeting captures
+the currently displayed bitmap, so interruptions remain continuous. Normal-sized
+scenes keep per-primitive motion. The final frame always uses the exact native
+scene renderer, and the temporary bitmaps are released when playback settles.

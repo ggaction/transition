@@ -2,7 +2,7 @@
   "name": "@ggaction/transition",
   "version": "0.1.0",
   "type": "module",
-  "description": "Interruptible SVG transitions for ggaction scenes",
+  "description": "Interruptible SVG and Canvas transitions for ggaction scenes",
   "license": "MIT",
   "sideEffects": false,
   "repository": {
@@ -28,7 +28,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "test:browser": "node test/browser.mjs"
+    "test:browser": "node test/browser.mjs && node test/canvas-browser.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"
