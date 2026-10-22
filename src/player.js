@@ -15,8 +15,12 @@ export function createTransitionPlayer(host, { duration=300, maxAnimatedNodes=30
   svg.append(defs,body);host.replaceChildren(svg);
   const media=win.matchMedia('(prefers-reduced-motion: reduce)');
   let records=new Map(), frame=0, destroyed=false, target=null, viewport=[1,1], viewTrack=null, start=0, ms=duration;
-  let waiter=null, sequence=0, cache=new Map(), definitionSets=new Map(), clips=[];
+  let waiter=null, sequence=0, cache=new Map(), definitionSets=new Map(), clips=[], viewportAttribute='';
   const stats={frames:0,retargets:0,maxFrameMs:0};
+  // SVG painting includes browser work after this callback (large transparent
+  // marks can be cheap JS but expensive to rasterize). When that misses frames,
+  // leave alternate display frames free for pointer/card compositor animations.
+  let lastFrame=0,lastPaint=0,lastSlow=0,pressure=0,paced=false;
   const attrs=node=>Object.fromEntries([...node.attributes].map(a=>[a.name,a.value]));
   function compile(scene) {
     if(cache.has(scene)) return cache.get(scene);
@@ -61,12 +65,12 @@ export function createTransitionPlayer(host, { duration=300, maxAnimatedNodes=30
       r.alpha=mix(tr.alpha,tr.endAlpha,t);
       r.offset=tr.offset.map((v,i)=>mix(v,tr.endOffset[i],t));
       r.bounds=tr.bounds.map((v,i)=>mix(v,tr.endBounds[i],t));
-      for(const [name,interpolate] of tr.attributes){const value=interpolate(t);r.attrs[name]=value;r.node.setAttribute(name,value);}
+      for(const [name,interpolate] of tr.attributes){const value=interpolate(t);if(r.attrs[name]!==value){r.attrs[name]=value;r.node.setAttribute(name,value);}}
       paint(r);
       if(raw===1){r.track=null;if(tr.endAlpha===0){remove(r);records.delete(key);}else if(tr.destination){
         const n=tr.destination;
         for(const name of [...r.node.attributes].map(a=>a.name))if(!(name in n.attrs))r.node.removeAttribute(name);
-        for(const [name,value] of Object.entries(n.attrs))r.node.setAttribute(name,value);
+        for(const [name,value] of Object.entries(n.attrs))if(r.attrs[name]!==value)r.node.setAttribute(name,value);
         r.attrs={...n.attrs};r.namespace=n.namespace;
       }}
     }
@@ -74,11 +78,19 @@ export function createTransitionPlayer(host, { duration=300, maxAnimatedNodes=30
       for(const [i,k] of ['x','y','width','height'].entries())if(clip.last?.[i]!==bounds[i])clip.rect.setAttribute(k,String(bounds[i]));
       clip.last=bounds;
     }
-    if(viewTrack){viewport=viewTrack.from.map((v,i)=>mix(v,viewTrack.to[i],t));svg.setAttribute('viewBox',`0 0 ${viewport.join(' ')}`);}
+    if(viewTrack){viewport=viewTrack.from.map((v,i)=>mix(v,viewTrack.to[i],t));const value=`0 0 ${viewport.join(' ')}`;if(value!==viewportAttribute){svg.setAttribute('viewBox',value);viewportAttribute=value;}}
     if(raw===1){viewTrack=null;cleanupDefinitions();return true;}return false;
   }
   function loop(now) {
     frame=0;if(destroyed)return;
+    const gap=lastFrame?now-lastFrame:0;lastFrame=now;
+    if(gap>24&&gap<200){pressure=Math.min(4,pressure+1);lastSlow=now;}
+    else if(gap>0)pressure=Math.max(0,pressure-.05);
+    if(pressure>=2)paced=true;
+    // Avoid repeatedly probing the expensive rate during a short hover burst.
+    if(paced&&now-lastSlow>5000){paced=false;pressure=0;}
+    if(paced&&now-lastPaint<31&&now<start+ms){frame=win.requestAnimationFrame(loop);return;}
+    lastPaint=now;
     const begun=win.performance.now(),done=sample(now);stats.frames++;stats.maxFrameMs=Math.max(stats.maxFrameMs,win.performance.now()-begun);
     if(done){svg.dataset.animating='false';settleWait({status:'finished'});onFinish?.(target);}else frame=win.requestAnimationFrame(loop);
   }
@@ -102,7 +114,9 @@ export function createTransitionPlayer(host, { duration=300, maxAnimatedNodes=30
     if(!Number.isFinite(requested)||requested<0)throw new TypeError('Duration must be nonnegative.');
     if(target===scene&&options.duration!==0)return waiter ? new Promise(resolve=>{const old=waiter;waiter=v=>{old?.(v);resolve(v);};}) : Promise.resolve({status:'finished'});
     const compiled=compile(scene); // Validate before disturbing the visible scene.
-    const now=win.performance.now();if(frame){win.cancelAnimationFrame(frame);frame=0;stats.retargets++;}
+    const now=win.performance.now(),interrupted=Boolean(frame);if(frame){win.cancelAnimationFrame(frame);frame=0;stats.retargets++;}
+    if(now-lastFrame>500){lastFrame=0;lastPaint=0;pressure=0;paced=false;}
+    if(!interrupted)lastFrame=0; // Time spent idle is not a missed display frame.
     settleWait({status:'superseded'});
     const first=target===null;target=scene;
     ms=first||media.matches?0:requested;start=now;

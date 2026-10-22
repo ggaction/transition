@@ -73,6 +73,11 @@ changes during playback. Chart computation belongs outside animation frames;
 precompute scenes in a Worker and cache only a bounded working set. The player
 caches eight compiled scenes, shares plot clipping resources, cleans discarded
 resources, and bounds outgoing ghosts during rapid unrelated transitions.
+If expensive SVG painting causes repeated missed display frames, the player
+temporarily updates the chart at approximately 30 fps to leave display frames
+available for surrounding UI animations and pointer feedback. It probes the
+normal display rate again after recovery. Duration, interruption continuity and
+exact final attributes are unchanged; idle time is not treated as a slow frame.
 Above `maxAnimatedNodes`, changed primitive attributes crossfade instead of
 performing large numeric morphs. This bounds interpolation work, not rendering
 cost: very large SVG scenes still require browser profiling.
