@@ -5,7 +5,8 @@ export function validateCanvasScene(scene) {
   const keys=new Set();
   for(const n of scene.nodes){
     if(typeof n.key!=='string'||keys.has(n.key)||!['circle','rect','line','path','text'].includes(n.type)||
-      n.offset?.length!==2||n.clip?.length!==4||![...n.offset,...n.clip].every(Number.isFinite)||n.clip[2]<0||n.clip[3]<0||!n.properties) throw new TypeError('Invalid Canvas scene node.');
+      n.offset?.length!==2||n.clip?.length!==4||![...n.offset,...n.clip].every(Number.isFinite)||n.clip[2]<0||n.clip[3]<0||!n.properties||
+      n.clips!==undefined&&(!Array.isArray(n.clips)||n.clips.some(c=>!Array.isArray(c)||c.length!==4||!c.every(Number.isFinite)||c[2]<0||c[3]<0))) throw new TypeError('Invalid Canvas scene node.');
     keys.add(n.key);
   }
   return scene;
@@ -77,7 +78,8 @@ export function createCanvasTransitionPlayer(host,{render,duration=300,maxAnimat
     for(const r of records){const tr=r.track;if(!tr)continue;
       r.alpha=mix(tr.alpha,tr.endAlpha,t);
       r.node={...r.node,properties:tr.properties?tr.properties(t):r.node.properties,
-        offset:tr.from.offset.map((v,i)=>mix(v,tr.to.offset[i],t)),clip:tr.from.clip.map((v,i)=>mix(v,tr.to.clip[i],t))};
+        offset:tr.from.offset.map((v,i)=>mix(v,tr.to.offset[i],t)),clip:tr.from.clip.map((v,i)=>mix(v,tr.to.clip[i],t)),
+        ...(tr.clips?{clips:tr.clips(t)}:{})};
     }
     if(raw===1){raster=null;records=target.nodes.map(node=>({node,alpha:1}));viewport=[target.width,target.height];paint(target);return true;}
     const nodes=records.filter(r=>r.alpha>.0001).map((r,i)=>({...r.node,key:`frame-${i}`,
@@ -112,7 +114,12 @@ export function createCanvasTransitionPlayer(host,{render,duration=300,maxAnimat
         propertiesBetween(before.node.properties,node.properties,document):null;
       const r=interpolator&&scene.nodes.length<=maxAnimatedNodes?before:{node,alpha:0};
       if(r===before)used.add(r);
-      r.track={alpha:r.alpha,endAlpha:1,from:r.node,to:node,properties:r===before?interpolator:null};next.push(r);
+      const clipsFrom=r.node.clips,clipsTo=node.clips;
+      const clipCount=Math.max(clipsFrom?.length??0,clipsTo?.length??0);
+      const startClips=Array.from({length:clipCount},(_,i)=>clipsFrom?.[i]??r.node.clip);
+      const endClips=Array.from({length:clipCount},(_,i)=>clipsTo?.[i]??node.clip);
+      r.track={alpha:r.alpha,endAlpha:1,from:r.node,to:node,properties:r===before?interpolator:null,
+        ...((clipsFrom||clipsTo)?{clips:interpolateValue(startClips,endClips,document)}:{})};next.push(r);
     }
     const exits=records.filter(r=>!used.has(r)&&r.alpha>.005).sort((a,b)=>b.alpha-a.alpha).slice(0,Math.max(100,scene.nodes.length*2));
     for(const r of exits){r.track={alpha:r.alpha,endAlpha:0,from:r.node,to:r.node,properties:null};next.push(r);}

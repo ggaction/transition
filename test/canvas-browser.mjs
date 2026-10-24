@@ -30,7 +30,18 @@ try{
   const next=player.transitionTo(c);assert(painted.nodes[0].properties.x===from,'retarget starts at displayed frame');
   assert((await pending).status==='superseded','superseded settles');await next;
   assert(painted.nodes[0].properties.x===120,'exact endpoint');
-  const promises=[];for(let i=0;i<160;i++){promises.push(player.transitionTo(i%2?a:b));await new Promise(r=>setTimeout(r,4));}
+  const clippedA={...a,nodes:[{...a.nodes[0],clips:[[0,0,100,200],[10,0,80,200]]}]};
+  const clippedB={...a,nodes:[{...a.nodes[0],offset:[300,0],clip:[300,0,100,200],clips:[[300,0,100,200],[310,0,80,200]]}]};
+  await player.set(clippedA);
+  const moving=player.transitionTo(clippedB);await new Promise(r=>setTimeout(r,70));
+  assert(painted.nodes[0].clips[0][0]>0&&painted.nodes[0].clips[0][0]<300,'nested clips move with the adjacent plot');
+  assert(Math.abs(painted.nodes[0].clips[1][0]-painted.nodes[0].clips[0][0]-10)<1e-7,'nested clip relationship is preserved');
+  const mid=structuredClone(painted.nodes[0].clips);const back=player.transitionTo(clippedA);
+  assert(JSON.stringify(painted.nodes[0].clips)===JSON.stringify(mid),'clip retarget starts at displayed frame');
+  assert((await moving).status==='superseded','nested clip supersession');await back;
+  assert(JSON.stringify(painted.nodes[0].clips)===JSON.stringify(clippedA.nodes[0].clips),'exact nested clip endpoint');
+  try{player.transitionTo({...a,nodes:[{...a.nodes[0],clips:[[0,0,-1,2]]}]});throw new Error('accepted invalid clips');}catch(error){assert(error.message!=='accepted invalid clips','invalid nested clips rejected');}
+    const promises=[];for(let i=0;i<160;i++){promises.push(player.transitionTo(i%2?a:b));await new Promise(r=>setTimeout(r,4));}
   await player.set(c);await Promise.all(promises);assert(player.stats.nodes===1&&host.children.length===1,'bounded resources');
   const before=painted;try{player.transitionTo({...a,version:1});throw new Error('accepted invalid scene');}catch(error){assert(error.message!=='accepted invalid scene','version rejected');}
   assert(painted===before,'invalid scene preserves display');

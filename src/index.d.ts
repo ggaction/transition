@@ -11,7 +11,7 @@ export interface TransitionPlayer {
 }
 export declare function createTransitionPlayer(host:HTMLElement,options?:{duration?:number;maxAnimatedNodes?:number;onFinish?:(scene:TransitionScene)=>void}):TransitionPlayer;
 
-export interface CanvasTransitionNode { readonly key:string; readonly type:'circle'|'rect'|'line'|'path'|'text'; readonly topology:string; readonly properties:Readonly<Record<string,unknown>>; readonly offset:readonly [number,number]; readonly clip:readonly [number,number,number,number]; }
+export interface CanvasTransitionNode { readonly key:string; readonly type:'circle'|'rect'|'line'|'path'|'text'; readonly topology:string; readonly properties:Readonly<Record<string,unknown>>; readonly clips?:readonly (readonly [number,number,number,number])[]; readonly offset:readonly [number,number]; readonly clip:readonly [number,number,number,number]; }
 export interface CanvasTransitionScene { readonly version:2; readonly width:number; readonly height:number; readonly nodes:readonly CanvasTransitionNode[]; }
 export interface CanvasTransitionPlayer {
  set(scene:CanvasTransitionScene):Promise<TransitionResult>;

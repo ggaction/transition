@@ -140,3 +140,5 @@ repainting thousands of interpolated primitives per frame. Retargeting captures
 the currently displayed bitmap, so interruptions remain continuous. Normal-sized
 scenes keep per-primitive motion. The final frame always uses the exact native
 scene renderer, and the temporary bitmaps are released when playback settles.
+
+Canvas scenes may include an outer-to-inner `clips` array for nested compositions. Clip frames interpolate with mark offsets, including interrupted transitions; the final frame exactly restores the destination scene. Scope-qualified node keys keep identical mark IDs in neighboring charts separate. Structural changes with new keys fade in/out instead of guessing a correspondence between unrelated charts.
