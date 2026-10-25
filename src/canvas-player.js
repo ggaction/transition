@@ -101,6 +101,16 @@ export function createCanvasTransitionPlayer(host,{render,duration=300,maxAnimat
     // Records represent exactly the last painted frame, including midway fades.
     settle('superseded');const first=!target;target=scene;start=win.performance.now();ms=first||media.matches?0:requested;
     viewFrom=first?[scene.width,scene.height]:[...viewport];
+    // A direct endpoint needs no correspondence map, color parser or per-value
+    // interpolation closures. This also keeps reduced-motion/dense commits cheap.
+    if(ms===0){
+      raster=null;records=scene.nodes.map(node=>({node,alpha:1}));viewport=[scene.width,scene.height];
+      canvas.dataset.animating='false';
+      return new Promise((resolve,reject)=>{
+        try{paint(scene);resolve({status:'finished'});onFinish?.(scene);}
+        catch(error){reject(error);}
+      });
+    }
     const dense=ms>0&&(raster||scene.nodes.length>maxAnimatedNodes||records.length>maxAnimatedNodes);
     if(dense){
       const from=snapshot(canvas),to=document.createElement('canvas'),fit=size(scene);
