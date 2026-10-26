@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>@ggaction/transition · Playback demo</title>
+  <link rel="stylesheet" href="/examples/basic/style.css">
+  <script type="module" src="/examples/basic/app.js"></script>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">@ggaction/transition</p>
+    <h1>Change direction without starting over.</h1>
+    <p>Hover, focus, or click a destination. Switch quickly to interrupt the animation. These are synthetic scenes; no account, data download, or chart library is needed.</p>
+    <div class="toolbar">
+      <label>Renderer <select id="renderer"><option value="canvas">Canvas</option><option value="svg">SVG</option></select></label>
+      <label>Duration <input id="duration" type="range" min="0" max="1000" step="50" value="400"> <output id="duration-value">400 ms</output></label>
+    </div>
+    <div id="chart" role="img" aria-label="Animated synthetic points"></div>
+    <div class="toolbar" aria-label="Destinations">
+      <button type="button" data-scene="0">Rising</button>
+      <button type="button" data-scene="1">Falling</button>
+      <button type="button" data-scene="2">Wave</button>
+      <button type="button" id="rapid">Rapid switch</button>
+      <button type="button" id="immediate">Set immediately</button>
+      <button type="button" id="recreate">Destroy and recreate</button>
+    </div>
+    <p id="status" role="status" aria-live="polite">Preparing the demo…</p>
+    <p class="note">Reduced-motion preferences are respected. The demo owns interaction intent; the player only handles scenes and playback.</p>
+    <p><a href="https://github.com/ggaction/transition">Source and contribution guide</a></p>
+  </main>
+</body>
+</html>

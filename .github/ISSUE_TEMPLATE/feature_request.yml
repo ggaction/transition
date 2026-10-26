@@ -1,0 +1,20 @@
+name: Feature or documentation proposal
+description: Suggest a focused improvement to scene playback or its documentation.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or integration task
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+      description: Explain which player/scene format is affected and how existing consumers remain compatible.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Suggested validation

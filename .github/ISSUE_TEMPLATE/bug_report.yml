@@ -1,0 +1,45 @@
+name: Playback bug or performance problem
+description: Report an incorrect frame, interruption, resource leak, or slow playback.
+body:
+  - type: markdown
+    attributes:
+      value: Please use synthetic scenes and remove private text/data. For a vulnerability, follow SECURITY.md instead.
+  - type: input
+    id: revision
+    attributes:
+      label: Package or Git revision
+    validations:
+      required: true
+  - type: dropdown
+    id: renderer
+    attributes:
+      label: Rendering path
+      options:
+        - Canvas (scene version 2)
+        - SVG (scene version 1)
+        - Pure SVG planner
+        - Both players
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal scene and reproduction steps
+      description: Include timing, retarget sequence, producer revision, and a small example where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser, OS, device, and device-pixel ratio
+  - type: textarea
+    id: performance
+    attributes:
+      label: Measurements or additional context
+      description: For performance, include node count, renderer cost, cold/warm behavior, and repeated-use results. Do not post confidential traces.

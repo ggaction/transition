@@ -1,144 +1,108 @@
 # @ggaction/transition
 
-Interruptible, data-aware SVG transitions for ggaction. Repository:
-[ggaction/transition](https://github.com/ggaction/transition).
+**Smooth chart transitions that can change direction mid-animation.**
 
-This package consumes version-1 scenes from `ggaction/scene`. It has no runtime
-dependencies and does not load ggaction, recompute charts, or modify action history.
-The scene producer and the animation player are independently usable.
+This library plays transitions between concrete [ggaction](https://github.com/ggaction/ggaction) scenes. It supports **Canvas and SVG**, continues from the currently visible frame when interrupted, and settles every pending transition request. It does not compute charts, apply ggaction actions, or own your application's history.
 
-## Install from source
+[API reference](docs/api.md) · [Runnable demo](examples/basic/) · [Contribute](CONTRIBUTING.md) · [Report an issue](https://github.com/ggaction/transition/issues/new/choose)
 
-The package is prepared for npm distribution; no npm registry release has been
-published yet. The `ggaction/scene` producer currently lives on ggaction's
-`codex/edit-axes-autocomplete` branch. Use that source until it ships in a release.
+## Why use it?
+
+- **Fast retargeting:** move between previews without returning to a stale starting chart.
+- **Stable correspondence:** match explicit scene keys, not nearby pixels or DOM order.
+- **Two rendering paths:** native Canvas scenes or SVG scenes, with a separate pure SVG correspondence planner for Node/Workers.
+- **Exact endpoints:** compatible geometry interpolates; incompatible geometry/text fades; the final frame matches the destination scene.
+- **Bounded resources:** dense Canvas scenes use snapshot blending, and discarded playback resources are released.
+- **Accessible motion:** both players respect `prefers-reduced-motion`, including changes during playback.
+
+The caller still owns candidate computation, hover intent, committed state, and cancellation of stale asynchronous work. Large-scene rendering can remain expensive; the library does not promise a particular frame rate on every device.
+
+## Installation status
+
+The source package declares version `0.1.1`, but this project has **not published an npm registry release**. Install from the public Git repository for now:
 
 ```sh
 npm install github:ggaction/transition
-git clone --branch codex/edit-axes-autocomplete https://github.com/ggaction/ggaction.git
-npm install ./ggaction
 ```
+
+Commit your application's lockfile to retain the resolved revision. The package has no runtime dependencies and includes TypeScript declarations. Node.js 20+ is declared; contributor CI uses Node.js 22. The players require a browser DOM and a dedicated, non-zero-size container.
+
+Do not assume that an arbitrary published ggaction version includes the scene producer used by current development. The working ggaction source integration is on `codex/overlay-composition-v025`; the VisAutocomplete app records an exact tested revision in its [deployment-sources.json](https://github.com/ggaction/vis-autocomplete/blob/main/deployment-sources.json). Check access and pin compatible revisions for your own application.
+
+## Run the standalone demo
+
+This example needs neither ggaction nor an account. It uses small synthetic scenes and demonstrates both rendering paths, rapid retargeting, immediate updates, and cleanup.
+
+```sh
+git clone https://github.com/ggaction/transition.git
+cd transition
+npm ci
+npm run demo
+```
+
+Open **http://127.0.0.1:5175/**. Hover the three destination buttons or use the rapid-switch control. `PORT` selects another local port. The example's small renderer illustrates the Canvas callback contract; use ggaction's renderer for real ggaction scenes.
+
+## Use with ggaction
+
+Install a compatible ggaction source alongside this package, for example the current integration branch:
+
+```sh
+npm install github:ggaction/ggaction#codex/overlay-composition-v025
+```
+
+Provide a host such as `<div id="chart" style="position:relative;width:600px;height:400px"></div>` in your page. In your browser application's module or bundler entry:
 
 ```js
 import { chart } from 'ggaction';
-import { createTransitionScene } from 'ggaction/scene';
-import { createTransitionPlayer } from '@ggaction/transition';
+import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
+import { createCanvasTransitionPlayer } from '@ggaction/transition';
 
-const current = chart().createCanvas({ width: 600, height: 400 })
+const before = chart()
+  .createCanvas({ width: 600, height: 400, margin: 60 })
   .createData({ id: 'data', values: [{ x: 1, y: 2 }, { x: 2, y: 3 }] })
-  .createScatterPlot({ id: 'points', data: 'data', x: { field: 'x' }, y: { field: 'y' } });
-const next = current.encodeColor({ target: 'points', value: '#e45756' });
-const container = document.querySelector('#chart'); // Give it a width and height.
-const player = createTransitionPlayer(container, { duration: 300 });
-await player.set(createTransitionScene(current));
-await player.transitionTo(createTransitionScene(next));
-// A new call during animation continues from the displayed frame.
-await player.transitionTo(createTransitionScene(current));
+  .createScatterPlot({ id: 'points', data: 'data',
+    x: { field: 'x' }, y: { field: 'y' } });
+const after = before.encodeColor({ target: 'points', value: '#e45756' });
+const player = createCanvasTransitionPlayer(document.querySelector('#chart'), {
+  render: renderTransitionScene,
+  duration: 300,
+});
+
+await player.set(createTransitionScene(before, { format: 'canvas' }));
+await player.transitionTo(createTransitionScene(after, { format: 'canvas' }));
+// A new request during playback starts from what is currently painted.
+await player.transitionTo(createTransitionScene(before, { format: 'canvas' }));
+// When the host is unmounted:
 player.destroy();
 ```
 
-## API
+For SVG, use `createTransitionPlayer(host)` and `createTransitionScene(program)` (version 1). Do not pass a version-2 Canvas scene to the SVG player or to `planTransition`.
 
-- `planTransition(before, after)`: pure, linear-time correspondence plan with
-  `updates`, `enters`, `exits`. Works in Node and Workers; no DOM required.
-- `createTransitionPlayer(container, { duration = 300, maxAnimatedNodes = 3000,
-  onFinish } = {})`: owns one SVG in the container and replaces its existing
-  content. Use a dedicated container. Uniformly fits the native canvas.
-- `player.set(scene)`: immediately display a scene.
-- `player.transitionTo(scene, { duration } = {})`: retarget without resetting the
-  displayed coordinates. Promise resolves with `status: 'finished'`,
-  `'superseded'`, or `'destroyed'`; interrupted requests never remain pending.
-- `player.scene`: destination scene; `player.animating`: pending animation frame;
-  `player.element`: SVG; `player.stats`: diagnostic counts/frame work.
-- `player.destroy()`: cancel playback, settle promises, remove SVG and listeners.
+## API at a glance
 
-Scenes are readonly serializable values with `version`, native `width`/`height`,
-SVG `definitions` and ordered `nodes`. Nodes carry opaque `key`, concrete `type`,
-path `topology`, a concrete `svg` fragment, parent `offset`, and canvas `clip`.
-Use trusted scene producers; scenes contain SVG markup and are not a general
-untrusted SVG upload format. Unknown versions and duplicate keys are rejected.
-The package ships TypeScript declarations; no TypeScript runtime is required.
+| Export | Input | Responsibility |
+| --- | --- | --- |
+| `createCanvasTransitionPlayer(host, { render, ...options })` | Version-2 Canvas scenes | Browser playback using your synchronous scene renderer |
+| `createTransitionPlayer(host, options)` | Version-1 SVG scenes | Browser playback; owns one SVG in the host |
+| `planTransition(before, after)` | Two version-1 SVG scenes | Pure correspondence plan: updates, enters, exits |
 
-## Behavior and limits
+Both players provide `set`, `transitionTo`, `destroy`, and readonly `scene`, `element`, `animating`, and `stats`. A transition promise resolves to `{ status: 'finished' }`, `{ status: 'superseded' }`, or `{ status: 'destroyed' }`; invalid input and renderer failures can throw/reject. Calling playback after destruction throws. See [API details and integration patterns](docs/api.md) and [TypeScript declarations](src/index.d.ts).
 
-Matched primitives interpolate position, size, paint, opacity and compatible
-path commands. Point shape changes, changed path topology, text replacement,
-incompatible paints and unknown correspondence use a local crossfade. Matching
-never uses screen proximity or DOM order. Arc flags remain discrete. Facet
-placements and nested canvas clips are interpolated in absolute coordinates.
-Unchanged nodes stay mounted. Final attributes equal the destination exactly.
+Scenes must come from trusted producers. SVG scenes contain markup; this package is **not an SVG sanitizer** or an upload parser. See [SECURITY.md](SECURITY.md).
 
-The player automatically respects `prefers-reduced-motion`, including preference
-changes during playback. Chart computation belongs outside animation frames;
-precompute scenes in a Worker and cache only a bounded working set. The player
-caches eight compiled scenes, shares plot clipping resources, cleans discarded
-resources, and bounds outgoing ghosts during rapid unrelated transitions.
-If expensive SVG painting causes repeated missed display frames, the player
-temporarily updates the chart at approximately 30 fps to leave display frames
-available for surrounding UI animations and pointer feedback. It probes the
-normal display rate again after recovery. Duration, interruption continuity and
-exact final attributes are unchanged; idle time is not treated as a slow frame.
-Above `maxAnimatedNodes`, changed primitive attributes crossfade instead of
-performing large numeric morphs. This bounds interpolation work, not rendering
-cost: very large SVG scenes still require browser profiling.
-
-The caller owns hover intent, committed state, Apply, history and stale async
-request cancellation. Every hover candidate should be computed from the committed
-program; animation destination changes do not apply ggaction actions.
-
-## Tests
+## Contributing and checking changes
 
 ```sh
 npm ci
+npm run check:docs
 npm test
 npx playwright install chromium
 npm run test:browser
-npm pack --dry-run
+npm run test:package
 ```
 
-`CHROME_PATH` optionally selects an existing Chrome executable. Browser tests
-verify exact retarget continuity, retained identity, 120 rapid switches, cleanup,
-invalid input, promise settlement, and reduced motion. Native chart pixel and
-performance integration tests live in `ggaction/vis-autocomplete` under
-`test/browser/transition-player.py` and `transition-mode.py`.
+Browser checks cover Canvas/SVG endpoints, interruptions, nested clips, reduced motion, and resource cleanup. The package check installs the packed tarball in an isolated temporary consumer and imports its public API. `CHROME_PATH` can select an existing Chrome executable for browser tests. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and performance expectations.
 
+## License
 
-## Canvas playback
-
-Use version-2 scenes with `createCanvasTransitionPlayer`. Canvas drawing is
-provided by ggaction, while this package owns correspondence, timing and
-interruption. No SVG parsing or bitmap image decoding occurs during playback.
-SVG playback and version-1 scenes remain supported by `createTransitionPlayer`.
-
-```js
-import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
-import { createCanvasTransitionPlayer } from '@ggaction/transition';
-// container is a sized, positioned HTMLElement; before/after are ChartPrograms.
-const player = createCanvasTransitionPlayer(container, {
-  render: renderTransitionScene, duration: 300, maxAnimatedNodes: 3000
-});
-await player.set(createTransitionScene(before, { format: 'canvas' }));
-await player.transitionTo(createTransitionScene(after, { format: 'canvas' }));
-// When removing the host:
-player.destroy();
-```
-
-The Canvas player has the same `set`, `transitionTo`, `scene`, `element`,
-`animating`, `stats`, and `destroy` lifecycle. Its element is an HTMLCanvasElement.
-Retargeting starts at the last painted frame, including partially faded marks.
-Compatible numeric geometry, colors, gradients and path commands interpolate;
-different text, discrete styles or incompatible paths crossfade. The player fits
-and centers the logical scene, redraws when the host resizes, and honors device
-pixel ratio and reduced motion. Backing allocation is capped at 4096 per axis and
-16 million pixels; logical geometry is unaffected. Outgoing records are bounded
-and observers, frame callbacks and the Canvas are released on destruction.
-The `render` callback receives `(scene, context, { pixelRatio })`; it must clear
-and size the canvas and paint the supplied concrete scene synchronously.
-
-Above `maxAnimatedNodes`, the player blends two Canvas snapshots instead of
-repainting thousands of interpolated primitives per frame. Retargeting captures
-the currently displayed bitmap, so interruptions remain continuous. Normal-sized
-scenes keep per-primitive motion. The final frame always uses the exact native
-scene renderer, and the temporary bitmaps are released when playback settles.
-
-Canvas scenes may include an outer-to-inner `clips` array for nested compositions. Clip frames interpolate with mark offsets, including interrupted transitions; the final frame exactly restores the destination scene. Scope-qualified node keys keep identical mark IDs in neighboring charts separate. Structural changes with new keys fade in/out instead of guessing a correspondence between unrelated charts.
+[MIT](LICENSE), copyright Hyeon Jeon and the respective contributors. Commercial use is permitted under that license. Contributions use the same license without a separate CLA or copyright assignment. ggaction and applications using this package have their own repositories and terms.

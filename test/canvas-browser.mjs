@@ -16,6 +16,13 @@ try{
  await page.evaluate(async()=>{
   const {createCanvasTransitionPlayer}=await import('/src/index.js');
   const assert=(x,m)=>{if(!x)throw new Error(m);};
+  // Browser startup can deliver frames before playback has visibly advanced.
+  // Observe real progress before testing a mid-flight interruption; keep a timeout.
+  const waitForPaint=check=>new Promise((resolve,reject)=>{
+   let frame;const timeout=setTimeout(()=>{cancelAnimationFrame(frame);reject(new Error('No intermediate frame painted within 5 seconds'));},5000);
+   const poll=()=>{if(check()){clearTimeout(timeout);resolve();}else frame=requestAnimationFrame(poll);};
+   frame=requestAnimationFrame(poll);
+  });
   const scene=(x,color='#000')=>({version:2,width:500,height:400,nodes:[{key:'p',type:'circle',topology:'',properties:{x,y:100,radius:6,fill:color},offset:[0,0],clip:[0,0,500,400]}]});
   const host=document.querySelector('#host');let painted;
   function render(s,ctx,{pixelRatio}){
@@ -25,7 +32,7 @@ try{
   const player=createCanvasTransitionPlayer(host,{render});window.canvasPlayer=player;
   const a=scene(10),b=scene(400,'#f00'),c=scene(120,'#00f');
   await player.set(a);assert(player.element.width===1000,'DPR applied');
-  const pending=player.transitionTo(b);await new Promise(r=>setTimeout(r,70));
+  const pending=player.transitionTo(b,{duration:1000});await waitForPaint(()=>painted.nodes[0].properties.x>10);
   const from=painted.nodes[0].properties.x;assert(from>10&&from<400,'intermediate geometry');
   const next=player.transitionTo(c);assert(painted.nodes[0].properties.x===from,'retarget starts at displayed frame');
   assert((await pending).status==='superseded','superseded settles');await next;
@@ -33,7 +40,7 @@ try{
   const clippedA={...a,nodes:[{...a.nodes[0],clips:[[0,0,100,200],[10,0,80,200]]}]};
   const clippedB={...a,nodes:[{...a.nodes[0],offset:[300,0],clip:[300,0,100,200],clips:[[300,0,100,200],[310,0,80,200]]}]};
   await player.set(clippedA);
-  const moving=player.transitionTo(clippedB);await new Promise(r=>setTimeout(r,70));
+  const moving=player.transitionTo(clippedB,{duration:1000});await waitForPaint(()=>painted.nodes[0].clips[0][0]>0);
   assert(painted.nodes[0].clips[0][0]>0&&painted.nodes[0].clips[0][0]<300,'nested clips move with the adjacent plot');
   assert(Math.abs(painted.nodes[0].clips[1][0]-painted.nodes[0].clips[0][0]-10)<1e-7,'nested clip relationship is preserved');
   const mid=structuredClone(painted.nodes[0].clips);const back=player.transitionTo(clippedA);

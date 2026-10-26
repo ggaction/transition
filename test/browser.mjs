@@ -14,6 +14,13 @@ try{
  const result=await page.evaluate(async()=>{
   const {createTransitionPlayer}=await import('/src/index.js');
   const assert=(x,m)=>{if(!x)throw new Error(m);};
+  // Browser startup can deliver frames before playback has visibly advanced.
+  // Observe real progress before testing a mid-flight interruption; keep a timeout.
+  const waitForPaint=check=>new Promise((resolve,reject)=>{
+   let frame;const timeout=setTimeout(()=>{cancelAnimationFrame(frame);reject(new Error('No intermediate frame painted within 5 seconds'));},5000);
+   const poll=()=>{if(check()){clearTimeout(timeout);resolve();}else frame=requestAnimationFrame(poll);};
+   frame=requestAnimationFrame(poll);
+  });
   const node=(x,color)=>({key:'point',type:'circle',topology:'',svg:`<circle cx="${x}" cy="100" r="6" fill="${color}"/>`,offset:[0,0],clip:[0,0,500,400]});
   const scene=(x,c)=>({version:1,width:500,height:400,definitions:'',nodes:[node(x,c)]});
   const a=scene(10,'#000000'),b=scene(400,'#ff0000'),c=scene(120,'#0000ff');
@@ -22,8 +29,8 @@ try{
   const viewportWrites=[];
   const observer=new MutationObserver(entries=>viewportWrites.push(...entries));
   observer.observe(player.element,{attributes:true,attributeFilter:['viewBox']});
-  const pending=player.transitionTo(b);await new Promise(r=>setTimeout(r,70));
-  const from=Number(mark.getAttribute('cx'));assert(from>10&&from<400,'intermediate position');
+  const pending=player.transitionTo(b,{duration:1000});await waitForPaint(()=>Number(mark.getAttribute('cx'))>10);
+  const from=Number(mark.getAttribute('cx'));assert(from>10&&from<400,`intermediate position: x=${from}, frames=${player.stats.frames}, visible=${document.visibilityState}`);
   const next=player.transitionTo(c),sample=Number(mark.getAttribute('cx'));
   assert(Math.abs(from-sample)<.001,'retarget continues from the visible position');
   assert(player.element.querySelector('circle')===mark,'retains matched DOM node');

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Private security reporting
+    url: https://github.com/ggaction/transition/blob/main/SECURITY.md
+    about: Do not post vulnerabilities or private scene data publicly.
+  - name: Native chart actions and scene production
+    url: https://github.com/ggaction/ggaction
+    about: Chart semantics and scene generation belong to ggaction.

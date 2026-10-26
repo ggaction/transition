@@ -18,7 +18,8 @@
   "files": [
     "src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/api.md"
   ],
   "engines": {
     "node": ">=20"
@@ -28,9 +29,24 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "test:browser": "node test/browser.mjs && node test/canvas-browser.mjs"
+    "test:browser": "node test/browser.mjs && node test/canvas-browser.mjs",
+    "check:docs": "node scripts/check-docs.js",
+    "demo": "node examples/server.js",
+    "test:package": "node test/package.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"
-  }
+  },
+  "homepage": "https://github.com/ggaction/transition#readme",
+  "bugs": {
+    "url": "https://github.com/ggaction/transition/issues"
+  },
+  "keywords": [
+    "ggaction",
+    "visualization",
+    "animation",
+    "canvas",
+    "svg",
+    "transition"
+  ]
 }
